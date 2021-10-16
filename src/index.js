@@ -1,10 +1,13 @@
 const Discord = require("discord.js");
-const { prefix, token } = {
+const validUrl = require("valid-url");
+const ytdl = require("ytdl-core");
+const axios = require("axios");
+
+const { prefix, token, youtubeApiKey } = {
   prefix: "!",
   token: "ODk4NzAzMTM3NDM3Nzg2MTYy.YWoEhQ.REi_PSJSnJ47UXLcFEJC9diheq8",
+  youtubeApiKey: "AIzaSyAyALO1jgtjrw5NcC2SPaHxgMPeVo8-9hg",
 };
-
-const ytdl = require("ytdl-core");
 
 const client = new Discord.Client();
 const queue = new Map();
@@ -56,7 +59,20 @@ async function execute(message, serverQueue) {
     );
   }
 
-  const songInfo = await ytdl.getInfo(args[1]);
+  const isValidUrl = validUrl.isUri(args[1]);
+
+  let url = args[1];
+  /*
+   * Text search to url from youtube
+  if (!isValidUrl) {
+    const id = (
+      await axios.get(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${args[1]}&type=video&key=${youtubeApiKey}&maxResults=1`
+      )
+    ).data.items[0].id.videoId;
+    url = "https://youtu.be/" + id;
+  }*/
+  const songInfo = await ytdl.getInfo(url);
   const song = {
     title: songInfo.videoDetails.title,
     url: songInfo.videoDetails.video_url,
@@ -105,7 +121,14 @@ function play(guild, song) {
   }
 
   const dispatcher = serverQueue.connection
-    .play(ytdl(song.url))
+    .play(
+      ytdl(song.url, {
+        filter: "audioonly",
+        quality: "highestaudio",
+        highWaterMark: 1 << 25,
+      }),
+      { highWaterMark: 1 }
+    )
     .on("finish", () => {
       serverQueue.songs.shift();
       play(guild, serverQueue.songs[0]);
