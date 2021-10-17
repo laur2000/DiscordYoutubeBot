@@ -1,12 +1,10 @@
 const Discord = require("discord.js");
-const validUrl = require("valid-url");
 const ytdl = require("ytdl-core");
-const axios = require("axios");
+const yt = require("youtube-search-without-api-key");
 
-const { prefix, token, youtubeApiKey } = {
+const { prefix, token } = {
   prefix: "!",
   token: "ODk4NzAzMTM3NDM3Nzg2MTYy.YWoEhQ.REi_PSJSnJ47UXLcFEJC9diheq8",
-  youtubeApiKey: "AIzaSyAyALO1jgtjrw5NcC2SPaHxgMPeVo8-9hg",
 };
 
 const client = new Discord.Client();
@@ -59,19 +57,14 @@ async function execute(message, serverQueue) {
     );
   }
 
-  const isValidUrl = validUrl.isUri(args[1]);
-
   let url = args[1];
-  /*
-   * Text search to url from youtube
+  const isValidUrl = ytdl.validateURL(url);
+
   if (!isValidUrl) {
-    const id = (
-      await axios.get(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=20&q=${args[1]}&type=video&key=${youtubeApiKey}&maxResults=1`
-      )
-    ).data.items[0].id.videoId;
-    url = "https://youtu.be/" + id;
-  }*/
+    const videos = await yt.search(url);
+    url = videos[0].url;
+  
+  }
   const songInfo = await ytdl.getInfo(url);
   const song = {
     title: songInfo.videoDetails.title,
