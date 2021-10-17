@@ -61,7 +61,8 @@ async function execute(message, serverQueue) {
   const isValidUrl = ytdl.validateURL(url);
 
   if (!isValidUrl) {
-    const videos = await yt.search(url);
+    const [command, ...searchQuery] = args
+    const videos = await yt.search(searchQuery.join(''));
     url = videos[0].url;
   
   }
