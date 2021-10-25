@@ -7,6 +7,9 @@ const { prefix, token } = {
   token: "ODk4NzAzMTM3NDM3Nzg2MTYy.YWoEhQ.REi_PSJSnJ47UXLcFEJC9diheq8",
 };
 
+const prefixes = {};
+const loops = {};
+
 const client = new Discord.Client();
 const queue = new Map();
 
@@ -24,23 +27,44 @@ client.once("disconnect", () => {
 
 client.on("message", async (message) => {
   if (message.author.bot) return;
-  if (!message.content.startsWith(prefix)) return;
+  const guild = message.guild.id;
+  const localPrefix = prefixes[guild] || prefix;
+  const serverQueue = queue.get(guild);
+  if (!message.content.startsWith(localPrefix)) return;
 
-  const serverQueue = queue.get(message.guild.id);
-
-  if (message.content.startsWith(`${prefix}play`)) {
+  if (message.content.startsWith(`${localPrefix}play`)) {
     execute(message, serverQueue);
     return;
-  } else if (message.content.startsWith(`${prefix}skip`)) {
+  } else if (message.content.startsWith(`${localPrefix}skip`)) {
     skip(message, serverQueue);
     return;
-  } else if (message.content.startsWith(`${prefix}stop`)) {
+  } else if (message.content.startsWith(`${localPrefix}stop`)) {
     stop(message, serverQueue);
     return;
+  } else if (message.content.startsWith(`${localPrefix}prefix`)) {
+    changePrefix(message, guild);
+  }else if (message.content.startsWith(`${localPrefix}loop`)) {
+    loop(guild);
   } else {
     message.channel.send("You need to enter a valid command!");
   }
 });
+
+function loop(guild) {
+  loops[guild] = !loops[guild];
+  return message.channel.send("The queue is"+ (loops[guild] ? " " : " not ")+ "in loop");
+}
+
+function changePrefix(message, guild) {
+  const args = message.content.split(" ");
+  if (args.length !== 2) {
+    return message.channel.send("You must provide only an argument");
+  }
+
+  prefixes[guild] = args[1];
+
+  return message.channel.send("Prefix changed to " + prefixes[guild]);
+}
 
 async function execute(message, serverQueue) {
   const args = message.content.split(" ");
@@ -61,10 +85,9 @@ async function execute(message, serverQueue) {
   const isValidUrl = ytdl.validateURL(url);
 
   if (!isValidUrl) {
-    const [command, ...searchQuery] = args
-    const videos = await yt.search(searchQuery.join(''));
+    const [command, ...searchQuery] = args;
+    const videos = await yt.search(searchQuery.join(""));
     url = videos[0].url;
-  
   }
   const songInfo = await ytdl.getInfo(url);
   const song = {
@@ -101,7 +124,6 @@ async function execute(message, serverQueue) {
     }
   } else {
     serverQueue.songs.push(song);
-    console.log(serverQueue.songs);
     return message.channel.send(`${song.title} has been added to the queue!`);
   }
 }
@@ -124,7 +146,10 @@ function play(guild, song) {
       { highWaterMark: 1 }
     )
     .on("finish", () => {
-      serverQueue.songs.shift();
+      const lastSong = serverQueue.songs.shift();
+      if(loops[guild.id]) {
+        serverQueue.songs.push(lastSong);
+      }
       play(guild, serverQueue.songs[0]);
     })
     .on("error", (error) => console.error(error));
