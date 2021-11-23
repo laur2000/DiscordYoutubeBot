@@ -4,7 +4,7 @@ const yt = require("youtube-search-without-api-key");
 
 const { prefix, token } = {
   prefix: "!",
-  token: "ODk4NzAzMTM3NDM3Nzg2MTYy.YWoEhQ.REi_PSJSnJ47UXLcFEJC9diheq8",
+  token: "ODk4NzAzMTM3NDM3Nzg2MTYy.YWoEhQ.S3k-J3h-I0QMSFfBwFHu9CJUxws",
 };
 
 const prefixes = {};
