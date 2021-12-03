@@ -9,8 +9,9 @@ pipeline {
 
     stage('Run') {
       steps {
-        withCredentials([string(credentialsId: 'DISCORD_TOKEN', variable: 'DISCORD_TOKEN')])
-        sh 'docker run -d --rm -e DISCORD_TOKEN=\'${DISCORD_TOKEN}\' discord-bot'
+        withCredentials([string(credentialsId: 'DISCORD_TOKEN', variable: 'DISCORD_TOKEN')]) {
+          sh 'docker run -d --rm -e DISCORD_TOKEN=\'${DISCORD_TOKEN}\' discord-bot'
+        }
       }
     }
 
