@@ -7,6 +7,8 @@ const { prefix, token } = {
   token: process.env.DISCORD_TOKEN,
 };
 
+console.log(process.env)
+
 const prefixes = {};
 const loops = {};
 
