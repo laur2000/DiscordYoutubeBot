@@ -4,8 +4,9 @@ const yt = require("youtube-search-without-api-key");
 
 const { prefix, token } = {
   prefix: "!",
-  token: "ODk4NzAzMTM3NDM3Nzg2MTYy.YWoEhQ.REi_PSJSnJ47UXLcFEJC9diheq8",
+  token: process.env.DISCORD_TOKEN,
 };
+
 
 const prefixes = {};
 const loops = {};
@@ -124,7 +125,7 @@ async function execute(message, serverQueue) {
     }
   } else {
     serverQueue.songs.push(song);
-    return message.channel.send(`${song.title} has been added to the queue!`);
+    return message.channel.send(`The song ${song.title} has been added to the queue!`);
   }
 }
 
@@ -154,7 +155,7 @@ function play(guild, song) {
     })
     .on("error", (error) => console.error(error));
   dispatcher.setVolumeLogarithmic(serverQueue.volume / 5);
-  serverQueue.textChannel.send(`Start playing: **${song.title}**`);
+  serverQueue.textChannel.send(`Started playing: **${song.title}**`);
 }
 
 function skip(message, serverQueue) {
