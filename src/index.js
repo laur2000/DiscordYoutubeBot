@@ -96,7 +96,7 @@ async function execute(message, serverQueue) {
     url = `https://www.youtube.com/watch?v=${videos[0].id}`;
   }
 
-  const {title} = await ytdl.getInfo(url);
+  const {videoDetails: {title}} = await ytdl.getInfo(url);
 
   const song = {
     url, title
@@ -143,11 +143,9 @@ async function play(guild, song) {
     return;
   }
 
-  const {url: songUrl} = await ytdl.getInfo(song.url);
-
   const dispatcher = serverQueue.connection
     .play(
-      ytdl(songUrl, {
+      ytdl(song.url, {
         filter: "audioonly",
         quality: "highestaudio",
         highWaterMark: 1 << 25,
