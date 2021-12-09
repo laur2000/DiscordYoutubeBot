@@ -1,6 +1,8 @@
+require("dotenv").config();
 const Discord = require("discord.js");
 const ytdl = require("ytdl-core");
-const yt = require("youtube-search-without-api-key");
+const youtubeSearcher = require("@guillex7/youtube-searcher");
+const { ContentFilter } = require("@guillex7/youtube-searcher/build/types");
 
 const { prefix, token } = {
   prefix: "!",
@@ -45,13 +47,13 @@ client.on("message", async (message) => {
   } else if (message.content.startsWith(`${localPrefix}prefix`)) {
     changePrefix(message, guild);
   }else if (message.content.startsWith(`${localPrefix}loop`)) {
-    loop(guild);
+    loop(message, guild);
   } else {
     message.channel.send("You need to enter a valid command!");
   }
 });
 
-function loop(guild) {
+function loop(message, guild) {
   loops[guild] = !loops[guild];
   return message.channel.send("The queue is"+ (loops[guild] ? " " : " not ")+ "in loop");
 }
@@ -87,13 +89,17 @@ async function execute(message, serverQueue) {
 
   if (!isValidUrl) {
     const [command, ...searchQuery] = args;
-    const videos = await yt.search(searchQuery.join(""));
-    url = videos[0].url;
+    const videos = await youtubeSearcher.search(searchQuery.join(""), ContentFilter.VIDEO);
+    if (!videos.length) {
+        return message.channel.send("No Youtube video found! try using another words");
+    }
+    url = `https://www.youtube.com/watch?v=${videos[0].id}`;
   }
-  const songInfo = await ytdl.getInfo(url);
+
+  const {title} = await ytdl.getInfo(url);
+
   const song = {
-    title: songInfo.videoDetails.title,
-    url: songInfo.videoDetails.video_url,
+    url, title
   };
 
   if (!serverQueue) {
@@ -116,7 +122,7 @@ async function execute(message, serverQueue) {
       var connection = await voiceChannel.join();
       queueContruct.connection = connection;
       // Calling the play function to start a song
-      play(message.guild, queueContruct.songs[0]);
+      await play(message.guild, queueContruct.songs[0]);
     } catch (err) {
       // Printing the error message if the bot fails to join the voicechat
       console.log(err);
@@ -129,7 +135,7 @@ async function execute(message, serverQueue) {
   }
 }
 
-function play(guild, song) {
+async function play(guild, song) {
   const serverQueue = queue.get(guild.id);
   if (!song) {
     serverQueue.voiceChannel.leave();
@@ -137,9 +143,11 @@ function play(guild, song) {
     return;
   }
 
+  const {url: songUrl} = await ytdl.getInfo(song.url);
+
   const dispatcher = serverQueue.connection
     .play(
-      ytdl(song.url, {
+      ytdl(songUrl, {
         filter: "audioonly",
         quality: "highestaudio",
         highWaterMark: 1 << 25,
