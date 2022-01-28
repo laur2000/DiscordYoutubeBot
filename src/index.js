@@ -12,11 +12,12 @@ const { prefix, token } = {
 
 const prefixes = {};
 const loops = {};
+const radios = {};
 
 const client = new Discord.Client();
 const queue = new Map();
 
-client.login(token);
+client.login(token)
 
 client.once("ready", () => {
   console.log("Ready!");
@@ -31,7 +32,7 @@ client.once("disconnect", () => {
 client.on("message", async (message) => {
   if (message.author.bot) return;
   const guild = message.guild.id;
-  const localPrefix = prefixes[guild] || prefix;
+  const localPrefix = getGuildPrefix(guild)
   const serverQueue = queue.get(guild);
   if (!message.content.startsWith(localPrefix)) return;
 
@@ -44,9 +45,15 @@ client.on("message", async (message) => {
   } else if (message.content.startsWith(`${localPrefix}stop`)) {
     stop(message, serverQueue);
     return;
+  } else if (message.content.startsWith(`${localPrefix}radio`)) {
+    radio(message, guild)
+    return;
+  } else if (message.content.startsWith(`${localPrefix}help`)) {
+    help(message)
+    return;
   } else if (message.content.startsWith(`${localPrefix}prefix`)) {
     changePrefix(message, guild);
-  }else if (message.content.startsWith(`${localPrefix}loop`)) {
+  } else if (message.content.startsWith(`${localPrefix}loop`)) {
     loop(message, guild);
   } else {
     message.channel.send("You need to enter a valid command!");
@@ -55,7 +62,26 @@ client.on("message", async (message) => {
 
 function loop(message, guild) {
   loops[guild] = !loops[guild];
-  return message.channel.send("The queue is"+ (loops[guild] ? " " : " not ")+ "in loop");
+  return message.channel.send(`
+  `);
+}
+
+function help(message) {
+  const guildId = message.guild.id;
+  const localPrefix = getGuildPrefix(guildId)
+  return message.channel.send(`These are the available commands for the bot, use them with the prefix and the command name:\n
+  \`${localPrefix}play url/song name\`Plays a youtube video by its url or by its name\n
+  \`${localPrefix}stop\` Stops the bot and disconnects it from the channel\n
+  \`${localPrefix}skip\` Skips the current song in the queue\n
+  \`${localPrefix}loop\` When enabled the songs are not removed from the queue and are placed back\n
+  \`${localPrefix}radio\` When enabled it plays the next recommended song based on the previous song\n
+  \`${localPrefix}prefix newprefix\` Changes the prefix used for executing commands, the current prefix is \`${localPrefix}\`\n
+  \`${localPrefix}help\` Shows information about the available commands\n`);
+}
+
+function radio(message, guild) {
+  radios[guild] = !radios[guild];
+  return message.channel.send("The queue is" + (radios[guild] ? " " : " not ") + "playing in radio mode");
 }
 
 function changePrefix(message, guild) {
@@ -91,16 +117,12 @@ async function execute(message, serverQueue) {
     const [command, ...searchQuery] = args;
     const videos = await youtubeSearcher.search(searchQuery.join(""), ContentFilter.VIDEO);
     if (!videos.length) {
-        return message.channel.send("No Youtube video found! try using another words");
+      return message.channel.send("No Youtube video found! try using another words");
     }
     url = `https://www.youtube.com/watch?v=${videos[0].id}`;
   }
 
-  const {videoDetails: {title}} = await ytdl.getInfo(url);
-
-  const song = {
-    url, title
-  };
+  const song = await getSong(url)
 
   if (!serverQueue) {
     // Creating the contract for our queue
@@ -121,6 +143,9 @@ async function execute(message, serverQueue) {
       // Here we try to join the voicechat and save our connection into our object.
       var connection = await voiceChannel.join();
       queueContruct.connection = connection;
+      connection.on('disconnect', () => {
+        queue.delete(message.guild.id)
+      })
       // Calling the play function to start a song
       await play(message.guild, queueContruct.songs[0]);
     } catch (err) {
@@ -131,6 +156,9 @@ async function execute(message, serverQueue) {
     }
   } else {
     serverQueue.songs.push(song);
+    if (serverQueue.songs.length === 1) {
+      await play(message.guild, serverQueue.songs[0]);
+    }
     return message.channel.send(`The song ${song.title} has been added to the queue!`);
   }
 }
@@ -152,12 +180,30 @@ async function play(guild, song) {
       }),
       { highWaterMark: 1 }
     )
-    .on("finish", () => {
+    .on("finish", async () => {
       const lastSong = serverQueue.songs.shift();
-      if(loops[guild.id]) {
+      if (loops[guild.id]) {
         serverQueue.songs.push(lastSong);
       }
-      play(guild, serverQueue.songs[0]);
+      let currentSong = serverQueue.songs[0]
+
+      if (!currentSong) {
+        if (!radios[guild.id]) {
+          return;
+        }
+
+        if (song.related_videos && song.related_videos[0]) {
+          const videoid = song.related_videos[0].id
+          const url = `https://www.youtube.com/watch?v=${videoid}`
+          const radioSong = await getSong(url)
+          serverQueue.songs.push(radioSong)
+          currentSong = radioSong
+        }
+
+      }
+
+
+      play(guild, currentSong);
     })
     .on("error", (error) => console.error(error));
   dispatcher.setVolumeLogarithmic(serverQueue.volume / 5);
@@ -169,7 +215,7 @@ function skip(message, serverQueue) {
     return message.channel.send(
       "You have to be in a voice channel to stop the music!"
     );
-  if (!serverQueue)
+  if (!serverQueue || !serverQueue.songs.length)
     return message.channel.send("There is no song that I could skip!");
   serverQueue.connection.dispatcher.end();
 }
@@ -183,6 +229,23 @@ function stop(message, serverQueue) {
   if (!serverQueue)
     return message.channel.send("There is no song that I could stop!");
 
-  serverQueue.songs = [];
-  serverQueue.connection.dispatcher.end();
+
+  serverQueue.connection.disconnect()
+  queue.delete(message.guild.id);
+
+}
+
+
+async function getSong(url) {
+  const { videoDetails: { title }, related_videos } = await ytdl.getInfo(url);
+
+  const song = {
+    url, title, related_videos
+  };
+
+  return song
+}
+
+function getGuildPrefix(guildId) {
+  return prefixes[guildId] || prefix
 }
